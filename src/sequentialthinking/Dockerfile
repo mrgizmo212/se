@@ -1,24 +1,15 @@
-FROM node:22.12-alpine AS builder
-
-COPY src/sequentialthinking /app
-COPY tsconfig.json /tsconfig.json
+FROM node:20-slim
 
 WORKDIR /app
+COPY package.json ./
 
-RUN --mount=type=cache,target=/root/.npm npm install
+# Install project-level deps first for cache efficiency
+RUN npm install --production
 
-RUN --mount=type=cache,target=/root/.npm-production npm ci --ignore-scripts --omit-dev
+# Copy source and build MCP server
+COPY . .
+RUN npm run build
 
-FROM node:22-alpine AS release
-
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/package-lock.json /app/package-lock.json
-
-ENV NODE_ENV=production
-
-WORKDIR /app
-
-RUN npm ci --ignore-scripts --omit-dev
-
-ENTRYPOINT ["node", "dist/index.js"]
+# Wrapper deps (express, cors, body-parser already in package.json)
+EXPOSE 3000
+CMD ["node", "servers/src/sequentialthinking/server.js"]
